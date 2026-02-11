@@ -15,7 +15,7 @@ void printHelp(const char* exe) {
       << "\n==== mini_fem_solver 使用说明 ====\n"
       << "用法:\n"
       << "  " << exe
-      << " <input.inp> <output.vtk> [deform_scale] [solver=dense|eigen|petsc|pcg]\n\n"
+      << " <input.inp> <output.vtk> [deform_scale] [solver=dense|eigen|petsc|pcg|bicgstab]\n\n"
       << "功能命令:\n"
       << "  " << exe << " --help                  # 查看帮助\n"
       << "  " << exe << " --examples              # 列出内置示例\n"
@@ -28,7 +28,7 @@ void printHelp(const char* exe) {
       << "  input.inp      Abaqus 风格输入文件\n"
       << "  output.vtk     结果输出路径（会自动创建目录）\n"
       << "  deform_scale   变形显示缩放，默认 1.0\n"
-      << "  solver         dense/eigen/petsc/pcg，默认 dense\n\n"
+      << "  solver         dense/eigen/petsc/pcg/bicgstab，默认 dense\n\n"
       << "建议阅读文档:\n"
       << "  README.md\n"
       << "  docs/theory_manual_cn.md\n"
@@ -60,7 +60,7 @@ void printExamples() {
 }
 // 列出当前支持的线性求解器后端。
 void printSolvers() {
-  std::cout << "可选线性求解器: dense, eigen, petsc, pcg\n";
+  std::cout << "可选线性求解器: dense, eigen, petsc, pcg, bicgstab\n";
   std::cout << "提示：eigen/petsc 需要在 CMake 时检测到对应依赖。\n";
 }
 // 检查并返回用户选择的求解器后端；若无效则抛出异常。
@@ -69,7 +69,8 @@ fem::LinearSolverBackend parseSolverBackend(const std::string& s) {
   if (s == "eigen") return fem::LinearSolverBackend::EigenSparse;
   if (s == "petsc") return fem::LinearSolverBackend::PetscKsp;
   if (s == "pcg") return fem::LinearSolverBackend::ParallelCG;
-  throw std::runtime_error("Unknown solver backend: " + s + " (supported: dense|eigen|petsc|pcg)");
+  if (s == "bicgstab") return fem::LinearSolverBackend::BiCGStab;
+  throw std::runtime_error("Unknown solver backend: " + s + " (supported: dense|eigen|petsc|pcg|bicgstab)");
 }
 }  // namespace
 int main(int argc, char** argv) {
@@ -104,6 +105,10 @@ int main(int argc, char** argv) {
                 << model.temperatureBCs.size() << ", HeatLoads=" << model.heatLoads.size() << "\n";
       std::cout << "StepInc: initial=" << model.step.initialIncrement << ", min=" << model.step.minIncrement
                 << ", max=" << model.step.maxIncrement << ", fieldFreq=" << model.step.fieldOutputFrequency << "\n";
+      std::cout << "Nonlinear: algorithm="
+                << (model.step.nonlinearAlgorithm == fem::NonlinearAlgorithm::ModifiedNewton ? "ModifiedNewton" : "FullNewton")
+                << ", lineSearch=" << (model.step.lineSearchEnabled ? "on" : "off")
+                << ", lsMinAlpha=" << model.step.lineSearchMinAlpha << "\n";
       return 0;
     }
     if (argc < 3) {

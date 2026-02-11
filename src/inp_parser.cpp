@@ -145,8 +145,9 @@ Model parseInpFile(const std::string& filePath) {
       } else if (kw.key == "*STEP") {
         model.step = Step{};
         if (kw.params.count("NAME")) model.step.name = kw.params.at("NAME");
-        if (kw.params.count("NLGEOM") && upper(kw.params.at("NLGEOM")) == "YES") {
-          model.step.type = AnalysisType::NonlinearStatic;
+        if (kw.params.count("NLGEOM")) {
+          const auto nl = upper(kw.params.at("NLGEOM"));
+          if (nl == "YES" || nl == "ON" || nl == "TRUE") model.step.type = AnalysisType::NonlinearStatic;
         }
         if (kw.params.count("AMPLITUDE")) model.step.amplitudeName = kw.params.at("AMPLITUDE");
       } else if (kw.key == "*PLASTIC") {
@@ -177,6 +178,12 @@ Model parseInpFile(const std::string& filePath) {
         OutputRequest req;
         req.kind = kw.key;
         model.outputRequests.push_back(req);
+      } else if (kw.key == "*SOLUTION TECHNIQUE") {
+        if (kw.params.count("TYPE")) {
+          const auto t = upper(kw.params.at("TYPE"));
+          if (t.find("MODIFIED") != std::string::npos) model.step.nonlinearAlgorithm = NonlinearAlgorithm::ModifiedNewton;
+          else if (t.find("FULL") != std::string::npos || t.find("NEWTON") != std::string::npos) model.step.nonlinearAlgorithm = NonlinearAlgorithm::FullNewton;
+        }
       } else if (kw.key == "*STATIC") {
         if (model.step.type != AnalysisType::NonlinearStatic) model.step.type = AnalysisType::LinearStatic;
         if (kw.params.count("RIKS")) {
@@ -369,6 +376,15 @@ Model parseInpFile(const std::string& filePath) {
       if (p.size() >= 5) model.step.arcLengthShrinkFactor = std::stod(p[4]);
       if (p.size() >= 6) model.step.arcLengthMinRadius = std::stod(p[5]);
       if (p.size() >= 7) model.step.arcLengthMaxRadius = std::stod(p[6]);
+      if (p.size() >= 8) {
+        const auto alg = upper(p[7]);
+        if (alg.find("MOD") != std::string::npos) model.step.nonlinearAlgorithm = NonlinearAlgorithm::ModifiedNewton;
+        else if (alg.find("FULL") != std::string::npos || alg.find("NEWTON") != std::string::npos)
+          model.step.nonlinearAlgorithm = NonlinearAlgorithm::FullNewton;
+      }
+      if (p.size() >= 9) model.step.lineSearchEnabled = (std::stoi(p[8]) != 0);
+      if (p.size() >= 10) model.step.lineSearchMinAlpha = std::clamp(std::stod(p[9]), 1e-4, 1.0);
+      if (p.size() >= 11) model.step.lineSearchMaxBacktracks = std::max(0, std::stoi(p[10]));
     }
   }
 

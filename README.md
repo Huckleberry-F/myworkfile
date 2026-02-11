@@ -75,7 +75,7 @@ fem_solver <input.inp> <output.vtk> [deform_scale] [solver=dense|eigen|petsc|pcg
 - 网格：`*Node` `*Element` `*Nset` `*Elset`
 - 材料/截面：`*Material` `*Elastic` `*Plastic` `*Truss Section` `*Beam Section` `*Shell Section`
 - 载荷/边界：`*Boundary` `*Cload` `*Dload` `*Dsload` `*Amplitude`
-- 分析步：`*Step` `*Static` `*Controls`
+- 分析步：`*Step` `*Static` `*Controls` `*Solution Technique`
 - 非线性增强：`*Static, riks`
 - 约束/接触：`*Coupling` `*Kinematic` `*MPC` `*Contact Pair`
 - 输出请求：`*Output, field, frequency=` `*Field Output` `*Node Output` `*Element Output` `*End Step`
@@ -85,8 +85,8 @@ fem_solver <input.inp> <output.vtk> [deform_scale] [solver=dense|eigen|petsc|pcg
 
 ### 4.3 求解策略
 
-- 线性：Dense / Eigen / PETSc / OpenMP PCG
-- 非线性：Newton-Raphson、cutback、弧长半径自适应参数
+- 线性：Dense / Eigen / PETSc / OpenMP PCG / OpenMP BiCGStab（非对称系统）
+- 非线性：Full Newton / Modified Newton、线搜索回溯、cutback、弧长半径自适应参数
 - 约束：Lagrange 增广方程（Coupling + MPC）
 - 接触：法向罚函数 + 库仑摩擦切向投影
 

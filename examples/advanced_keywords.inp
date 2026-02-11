@@ -44,7 +44,8 @@ SOLID,PZ,-1.0e4
 *Static, riks
 1.0,0.02
 *Controls
-30,1e-6,8,1.25,0.5,1e-5,5e-2
+30,1e-6,8,1.25,0.5,1e-5,5e-2,MODIFIED,1,0.125,8
+*Solution Technique, type=MODIFIED NEWTON
 *Node Output
 U, RF
 *Element Output

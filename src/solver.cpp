@@ -105,6 +105,61 @@ std::vector<double> parallelCgSolve(const Matrix& A, const std::vector<double>& 
   return x;
 }
 
+// 并行 BiCGStab：支持一般非对称线性系统，适合接触/约束导致的非对称情形。
+std::vector<double> parallelBiCGStabSolve(const Matrix& A, const std::vector<double>& b, int maxIter, double tol) {
+  const int n = static_cast<int>(b.size());
+  std::vector<double> x(n, 0.0);
+  std::vector<double> r = b;
+  std::vector<double> r0 = r;
+  std::vector<double> p(n, 0.0), v(n, 0.0), s(n, 0.0), t(n, 0.0);
+  double rhoPrev = 1.0, alpha = 1.0, omega = 1.0;
+  const double bNorm = std::sqrt(std::max(1e-30, dotVec(b, b)));
+  if (std::sqrt(dotVec(r, r)) / bNorm < tol) return x;
+
+  for (int it = 0; it < maxIter; ++it) {
+    const double rho = dotVec(r0, r);
+    if (std::abs(rho) < 1e-30) break;
+    const double beta = (rho / rhoPrev) * (alpha / omega);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < n; ++i) p[i] = r[i] + beta * (p[i] - omega * v[i]);
+
+    v = matVec(A, p);
+    const double denom = dotVec(r0, v);
+    if (std::abs(denom) < 1e-30) break;
+    alpha = rho / denom;
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < n; ++i) s[i] = r[i] - alpha * v[i];
+
+    if (std::sqrt(dotVec(s, s)) / bNorm < tol) {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+      for (int i = 0; i < n; ++i) x[i] += alpha * p[i];
+      break;
+    }
+
+    t = matVec(A, s);
+    const double tt = dotVec(t, t);
+    if (std::abs(tt) < 1e-30) break;
+    omega = dotVec(t, s) / tt;
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < n; ++i) {
+      x[i] += alpha * p[i] + omega * s[i];
+      r[i] = s[i] - omega * t[i];
+    }
+    if (std::sqrt(dotVec(r, r)) / bNorm < tol) break;
+    if (std::abs(omega) < 1e-30) break;
+    rhoPrev = rho;
+  }
+  return x;
+}
+
 
 // 前向声明：耦合/接触罚函数。
 void applyCouplingPenalty(const Model& model, Matrix& K, std::vector<double>* fint, const std::vector<double>* u);
@@ -233,6 +288,9 @@ std::vector<double> solveLinearSystem(const Model& model, const Matrix& K, const
 
   if (model.step.solver == LinearSolverBackend::ParallelCG) {
     return parallelCgSolve(K, rhs, model.step.maxLinearIters, model.step.tolerance);
+  }
+  if (model.step.solver == LinearSolverBackend::BiCGStab) {
+    return parallelBiCGStabSolve(K, rhs, model.step.maxLinearIters, model.step.tolerance);
   }
   if (model.step.solver == LinearSolverBackend::PetscKsp) {
     throw std::runtime_error("PETSc backend selected but binary has no PETSc support");
@@ -1010,6 +1068,12 @@ Result solveLinear(const Model& model) {
     r.reaction[i] -= f[i];
   }
   assemble(model, &u, K, nullptr, &r.elementAxialForce, &r.elementStrain, &r.elementStress, &r.elementVonMises);
+  r.nodalTemperature.assign(model.nodes.size(), 0.0);
+  for (const auto& tbc : model.temperatureBCs) {
+    for (int nid : expandNodes(model, tbc.nodeId, tbc.nodeSetName)) {
+      r.nodalTemperature[nodeIdx(model, nid)] = tbc.temperature;
+    }
+  }
   return r;
 }
 
@@ -1040,12 +1104,18 @@ Result solveNonlinear(const Model& model) {
     bool converged = false;
     std::vector<double> uTrial = u;
     double dLamAcc = 0.0;
+    Matrix Kt;
+    bool tangentReady = false;
     for (int it = 0; it < model.step.maxNewtonIters; ++it) {
       assemble(model, &uTrial, K, &fint);
       std::vector<double> res(ndof, 0.0);
       for (int i = 0; i < ndof; ++i) res[i] = target[i] - fint[i];
 
-      Matrix Kmod = K;
+      if (!tangentReady || model.step.nonlinearAlgorithm == NonlinearAlgorithm::FullNewton) {
+        Kt = K;
+        tangentReady = true;
+      }
+      Matrix Kmod = Kt;
       applyBC(model, Kmod, res, fixed);
       double norm = 0.0;
       for (int i = 0; i < ndof; ++i)
@@ -1067,6 +1137,35 @@ Result solveNonlinear(const Model& model) {
 
       regularize(Kmod);
       auto du = solveWithMpcLagrange(model, Kmod, res, &uTrial);
+
+      if (model.step.lineSearchEnabled) {
+        double alpha = 1.0;
+        double bestNorm = resNorm;
+        std::vector<double> uBest = uTrial;
+        for (int bt = 0; bt < model.step.lineSearchMaxBacktracks; ++bt) {
+          std::vector<double> uCand = uTrial;
+          for (int i = 0; i < ndof; ++i) uCand[i] += alpha * du[i];
+          Matrix Kcand;
+          std::vector<double> fintCand;
+          assemble(model, &uCand, Kcand, &fintCand);
+          double normCand2 = 0.0;
+          for (int i = 0; i < ndof; ++i) {
+            const double ri = target[i] - fintCand[i];
+            if (!fixed[i]) normCand2 += ri * ri;
+          }
+          const double normCand = std::sqrt(normCand2);
+          if (normCand < bestNorm) {
+            bestNorm = normCand;
+            uBest = std::move(uCand);
+            if (normCand < resNorm * 0.9) break;
+          }
+          alpha *= 0.5;
+          if (alpha < model.step.lineSearchMinAlpha) break;
+        }
+        if (bestNorm < resNorm) {
+          for (int i = 0; i < ndof; ++i) du[i] = uBest[i] - uTrial[i];
+        }
+      }
       double duNorm = std::sqrt(dotVec(du, du));
       std::cout << "[Nonlinear]   Iter " << (it + 1) << ": du_norm=" << duNorm << "\n";
       if (model.step.useArcLength) {
@@ -1111,6 +1210,12 @@ Result solveNonlinear(const Model& model) {
         rf[i] -= ffinal[i];
       }
       r.reactionFrames.push_back(std::move(rf));
+    }
+  }
+  r.nodalTemperature.assign(model.nodes.size(), 0.0);
+  for (const auto& tbc : model.temperatureBCs) {
+    for (int nid : expandNodes(model, tbc.nodeId, tbc.nodeSetName)) {
+      r.nodalTemperature[nodeIdx(model, nid)] = tbc.temperature;
     }
   }
   return r;

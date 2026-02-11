@@ -21,7 +21,10 @@ enum class AnalysisType { LinearStatic, NonlinearStatic };
 enum class MaterialLaw { LinearElastic, BilinearElastoPlastic, J2Plasticity };
 
 // 线性求解后端：致密高斯、Eigen 稀疏、PETSc、并行 CG。
-enum class LinearSolverBackend { DenseGaussian, EigenSparse, PetscKsp, ParallelCG };
+enum class LinearSolverBackend { DenseGaussian, EigenSparse, PetscKsp, ParallelCG, BiCGStab };
+
+// 非线性迭代算法。
+enum class NonlinearAlgorithm { FullNewton, ModifiedNewton };
 
 // 节点坐标定义。
 struct Node {
@@ -148,6 +151,10 @@ struct Step {
   double arcLengthGrowFactor{1.25};
   double arcLengthShrinkFactor{0.5};
   int fieldOutputFrequency{1};
+  NonlinearAlgorithm nonlinearAlgorithm{NonlinearAlgorithm::FullNewton};
+  bool lineSearchEnabled{true};
+  int lineSearchMaxBacktracks{8};
+  double lineSearchMinAlpha{0.125};
 };
 
 
@@ -199,6 +206,7 @@ struct Result {
   std::vector<std::vector<double>> displacementFrames;
   std::vector<std::vector<double>> reactionFrames;
   std::vector<double> frameLoadFactors;
+  std::vector<double> nodalTemperature;
 };
 
 }  // namespace fem

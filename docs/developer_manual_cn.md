@@ -291,3 +291,12 @@ solve for [du, dlambda]
 - 步长过激导致迭代发散
 - 把“看起来收敛”误认为“物理正确”
 
+
+
+## 附录：本轮新增收敛增强与算法扩展
+
+- 新增线性求解后端：`BiCGStab`，用于接触/约束导致的非对称线性系统。
+- 非线性算法新增：`Full Newton` 与 `Modified Newton` 可切换。
+- 新增线搜索（backtracking）机制，减少牛顿步过大导致的发散。
+- `*CONTROLS` 额外支持：算法模式、线搜索开关、最小步长比例、回溯次数。
+- `*SOLUTION TECHNIQUE, TYPE=MODIFIED NEWTON|FULL NEWTON` 可显式指定非线性切线策略。
