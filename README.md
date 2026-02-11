@@ -137,6 +137,21 @@ fem_solver <input.inp> <output.vtk> [deform_scale] [solver=dense|eigen|petsc|pcg
 - 帧结果：`output/nl_field_f0001.vtk`、`...`
 
 
+
+### 5.6 新增案例（壳/梁链非线性/512 单元接触）
+
+```bash
+./build/fem_solver --check-inp examples/shell_plate_s4_256e.inp
+./build/fem_solver examples/shell_plate_s4_256e.inp output/shell_plate_256e.vtk 1.0 dense
+./build/fem_solver --check-inp examples/beam_chain_nonlinear_120e.inp
+./build/fem_solver examples/beam_chain_nonlinear_120e.inp output/beam_chain_120e.vtk 1.0 pcg
+./build/fem_solver --check-inp examples/contact_press_blocks_512e.inp
+./build/fem_solver examples/contact_press_blocks_512e.inp output/contact_512e.vtk 1.0 pcg
+```
+
+背景与预期结果见：`docs/examples_background_cn.md`。
+
+
 ---
 
 ## 6. 部署（可执行）

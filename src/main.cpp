@@ -49,6 +49,9 @@ void printExamples() {
       "examples/contact_two_blocks_144e.inp # 144 单元双体接触非线性算例",
       "examples/cantilever_solid_2000e.inp # 2000 单元大型悬臂梁弯曲",
       "examples/nonlinear_contact_field_output.inp # 接触+FIELD OUTPUT 帧输出",
+      "examples/shell_plate_s4_256e.inp # 256单元 S4 薄板弯曲",
+      "examples/beam_chain_nonlinear_120e.inp # 120单元梁链几何非线性",
+      "examples/contact_press_blocks_512e.inp # 512单元双块接触压缩",
       "examples/advanced_keywords.inp    # 接触/耦合/MPC/RIKS 扩展关键字",
   };
   std::cout << "\n内置示例列表:\n";

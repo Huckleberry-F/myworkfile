@@ -56,3 +56,8 @@
 - macOS（M4/ARM）：`scripts/deploy_macos_m4.sh`
 - Windows（PowerShell）：`scripts/deploy_windows.ps1`
 - Windows（CMD）：`scripts/deploy_windows.bat`
+
+
+## 8. 扩展案例与背景
+
+更完整的案例背景、适用场景和可复制运行命令，请查看：`docs/examples_background_cn.md`。
